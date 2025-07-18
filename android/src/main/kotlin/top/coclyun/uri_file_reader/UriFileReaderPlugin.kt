@@ -1,6 +1,9 @@
 package top.coclyun.uri_file_reader
 
 import android.app.Activity
+import android.content.Context
+import android.net.Uri
+import android.provider.MediaStore
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
@@ -101,7 +104,7 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val documentFile = DocumentFile.fromSingleUri(mainActivity!!, uri)
             val fileName = URLDecoder.decode(documentFile!!.name, "UTF-8")
             val length = documentFile.length()
-            val filePath = documentFile.uri.path
+            val filePath = getFilePathFromUri(mainActivity!!, uri)
             result.success(
                 mapOf(
                     "fileName" to fileName,
@@ -112,6 +115,23 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         } catch (e: Exception) {
             e.printStackTrace();
             result.success(null)
+        }
+    }
+
+    private fun getFilePathFromUri(context: Context, uri: Uri): String? {
+        try {
+            val projection = arrayOf(MediaStore.MediaColumns.DATA) // 根据类型调整字段
+            val cursor =
+                context.contentResolver.query(uri, projection, null, null, null) ?: return null
+            val columnIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
+            if (columnIndex == -1) return null
+            cursor.moveToFirst()
+            val path = cursor.getString(columnIndex)
+            cursor.close()
+            return path
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
         }
     }
 
