@@ -1,3 +1,11 @@
+## 1.0.2
+* 优化 文件路径获取
+* 优化 文件读取
+
+* Optimized file path retrieval
+* Optimized file reading
+
+---
 ## 1.0.1
 * 修复 从 URI 获取的文件路径为 URI path 的问题
 

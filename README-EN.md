@@ -32,7 +32,7 @@ final filePath = fileInfo?.path;
 final size = fileInfo?.size;
 
 // Read file bytes as stream
-final stream = uriFileReader.readFileAsBytesStream(uri);
+final stream = await uriFileReader.readFileAsBytesStream(uri);
 if (stream == null) {
   print("Read operation failed!");
 } else {

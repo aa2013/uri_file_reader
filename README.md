@@ -31,7 +31,7 @@ final filePath = fileInfo?.path;
 final size = fileInfo?.size;
 
 // 以流读取文件字节
-final stream = uriFileReader.readFileAsBytesStream(uri);
+final stream = await uriFileReader.readFileAsBytesStream(uri);
 if (stream == null) {
   print("read file failed!");
 }else{

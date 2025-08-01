@@ -17,6 +17,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+  share_handler: ^0.0.21
+  fast_file_picker: ^0.4.7
+
   uri_file_reader:
     # When depending on this package from a real application you should use:
     #   uri_file_reader: ^x.y.z
