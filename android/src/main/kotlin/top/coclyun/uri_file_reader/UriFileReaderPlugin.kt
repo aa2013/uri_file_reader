@@ -98,22 +98,63 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             result.success(null)
             return
         }
-        var args: Map<String, Any> = mapOf()
-        if (call.arguments is Map<*, *>) {
-            args = call.arguments as Map<String, Any>
+    
+        val args: Map<String, Any> = call.arguments as? Map<String, Any> ?: mapOf()
+        val uriString = args["uri"] as? String
+        if (uriString == null) {
+            result.error("INVALID_ARGUMENTS", "URI string is null", null)
+            return
         }
+    
         try {
-            val content = args["uri"].toString()
-            val uri = content.toUri()
-            val documentFile = DocumentFile.fromSingleUri(mainActivity!!, uri)
-            val fileName = URLDecoder.decode(documentFile!!.name, "UTF-8")
-            val length = documentFile.length()
-            var filePath = getFilePathFromUri(mainActivity!!, uri)
-
+            val uri = uriString.toUri()
+            var fileName: String? = null
+            var size: Long = -1L // 使用-1表示未知大小
+    
+            // 优先处理 content:// URI
+            if ("content".equals(uri.scheme, ignoreCase = true)) {
+                mainActivity!!.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        // 获取文件名
+                        val displayNameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (displayNameIndex != -1) {
+                            fileName = cursor.getString(displayNameIndex)
+                        }
+    
+                        // 获取文件大小
+                        val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                        if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
+                            size = cursor.getLong(sizeIndex)
+                        }
+                    }
+                }
+            } 
+            // 兼容 file:// URI
+            else if ("file".equals(uri.scheme, ignoreCase = true)) {
+                val file = uri.path?.let { File(it) }
+                if (file != null && file.exists()) {
+                    fileName = file.name
+                    size = file.length()
+                }
+            }
+            
+            // 尝试用 DocumentFile 作为后备方案
+            if (fileName == null || size == -1L) {
+                val documentFile = DocumentFile.fromSingleUri(mainActivity!!, uri);
+                if (fileName == null) {
+                    fileName = documentFile?.name
+                }
+                if (size == -1L) {
+                    size = documentFile?.length() ?: -1L
+                }
+            }
+    
+            val filePath = getFilePathFromUri(mainActivity!!, uri)
+    
             result.success(
                 mapOf(
                     "fileName" to fileName,
-                    "size" to length,
+                    "size" to size,
                     "path" to filePath
                 )
             )
