@@ -1,8 +1,12 @@
 package top.coclyun.uri_file_reader
 
 import android.app.Activity
+import android.content.ContentUris
 import android.content.Context
+import android.database.Cursor
 import android.net.Uri
+import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.net.toUri
@@ -104,7 +108,8 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             val documentFile = DocumentFile.fromSingleUri(mainActivity!!, uri)
             val fileName = URLDecoder.decode(documentFile!!.name, "UTF-8")
             val length = documentFile.length()
-            val filePath = getFilePathFromUri(mainActivity!!, uri)
+            var filePath = getFilePathFromUri(mainActivity!!, uri)
+
             result.success(
                 mapOf(
                     "fileName" to fileName,
@@ -118,21 +123,104 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
+
+    /**
+     * 根据 URI 获取文件的真实路径。
+     */
     private fun getFilePathFromUri(context: Context, uri: Uri): String? {
-        try {
-            val projection = arrayOf(MediaStore.MediaColumns.DATA) // 根据类型调整字段
-            val cursor =
-                context.contentResolver.query(uri, projection, null, null, null) ?: return null
-            val columnIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
-            if (columnIndex == -1) return null
-            cursor.moveToFirst()
-            val path = cursor.getString(columnIndex)
-            cursor.close()
-            return path
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return null
+        // 1. 判断是否是 DocumentProvider 的 URI
+        if (DocumentsContract.isDocumentUri(context, uri)) {
+            // A. ExternalStorageProvider
+            if (isExternalStorageDocument(uri)) {
+                val docId = DocumentsContract.getDocumentId(uri)
+                val split = docId.split(":".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                val type = split[0]
+                if ("primary".equals(type, ignoreCase = true)) {
+                    return Environment.getExternalStorageDirectory().toString() + "/" + split[1]
+                }
+                // TODO: Handle other types of storage (e.g., SD cards) if necessary
+            }
+            // B. DownloadsProvider
+            else if (isDownloadsDocument(uri)) {
+                val id = DocumentsContract.getDocumentId(uri)
+                 // 对于 "content://downloads/public_downloads" URI，需要特殊处理
+                if (id.startsWith("raw:")) {
+                    return id.replaceFirst("raw:", "");
+                }
+                
+                return try {
+                    val contentUri = ContentUris.withAppendedId(
+                        Uri.parse("content://downloads/public_downloads"), id.toLong())
+                    getDataColumn(context, contentUri, null, null)
+                } catch (e: NumberFormatException) {
+                    null
+                }
+            }
+            // C. MediaProvider
+            else if (isMediaDocument(uri)) {
+                val docId = DocumentsContract.getDocumentId(uri)
+                val split = docId.split(":".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+                val type = split[0]
+                var contentUri: Uri? = null
+                when (type) {
+                    "image" -> contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    "video" -> contentUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                    "audio" -> contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                }
+                val selection = "_id=?"
+                val selectionArgs = arrayOf(split[1])
+                return getDataColumn(context, contentUri, selection, selectionArgs)
+            }
         }
+        // 2. 判断是否是 content:// 协议的普通 URI (非 DocumentProvider)
+        else if ("content".equals(uri.scheme, ignoreCase = true)) {
+             // 如果是 Google Photos 的 URI，也返回 null，因为它不能直接访问
+            return if (isGooglePhotosUri(uri)) null else getDataColumn(context, uri, null, null)
+        }
+        // 3. 判断是否是 file:// 协议的 URI
+        else if ("file".equals(uri.scheme, ignoreCase = true)) {
+            return uri.path
+        }
+        return null
+    }
+
+    /**
+     * 从 ContentResolver 查询 _data 列，即文件的真实路径
+     */
+    private fun getDataColumn(context: Context, uri: Uri?, selection: String?, selectionArgs: Array<String>?): String? {
+        var cursor: Cursor? = null
+        val column = MediaStore.MediaColumns.DATA // 使用 MediaStore.MediaColumns.DATA 更通用
+        val projection = arrayOf(column)
+        try {
+            cursor = context.contentResolver.query(uri!!, projection, selection, selectionArgs, null)
+            if (cursor != null && cursor.moveToFirst()) {
+                val index = cursor.getColumnIndexOrThrow(column)
+                return cursor.getString(index)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace() // 调试
+        }
+        finally {
+            cursor?.close()
+        }
+        return null
+    }
+
+    // --- Helper Functions ---
+    private fun isExternalStorageDocument(uri: Uri): Boolean {
+        return "com.android.externalstorage.documents" == uri.authority
+    }
+
+    private fun isDownloadsDocument(uri: Uri): Boolean {
+        return "com.android.providers.downloads.documents" == uri.authority
+    }
+
+    private fun isMediaDocument(uri: Uri): Boolean {
+        return "com.android.providers.media.documents" == uri.authority
+    }
+    
+    private fun isGooglePhotosUri(uri: Uri): Boolean {
+        return "com.google.android.apps.photos.content" == uri.authority
     }
 
     private fun copyFileFromUri(call: MethodCall, result: Result) {
@@ -210,7 +298,7 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                         if (!hasActivity) {
                             throw Exception("mainActivity is null")
                         }
-                        mainActivity!!.runOnUiThread {
+                        mainActivity!!.runOnUiThread {  
                             try {
                                 sinkMap[uriStr]?.success(data)
                             } catch (e: Exception) {
