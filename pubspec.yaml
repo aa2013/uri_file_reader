@@ -1,6 +1,6 @@
 name: uri_file_reader
 description: "Support directly obtaining file content (bytes) via URI without copying to a private directory"
-version: 1.0.1
+version: 1.0.2
 license: MIT
 repository: https://github.com/aa2013/uri_file_reader
 
