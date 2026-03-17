@@ -273,7 +273,7 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private fun copyFileFromUri(call: MethodCall, result: Result) {
         if (!hasActivity) {
-            result.success(null)
+            result.error("Activity has detached", null, null)
             return
         }
         var args: Map<String, Any> = mapOf()
@@ -289,8 +289,7 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             newPath = args["newFolderPath"].toString() + "/${fileName}";
             val inputStream = mainActivity!!.contentResolver.openInputStream(uri)
             if (inputStream == null) {
-                Log.e(tag, "Failed to open input stream for URI: $content")
-                result.success(null)
+                result.error("Failed to open input stream for URI: $content", null, null)
                 return
             }
             val destFile = File(newPath)
@@ -305,7 +304,7 @@ class UriFileReaderPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             result.success(newPath)
         } catch (e: Exception) {
             e.printStackTrace();
-            result.success(null)
+            result.error("Unexpected error: ${e.message}", null, null)
             return
         }
     }

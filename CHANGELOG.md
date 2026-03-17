@@ -1,3 +1,8 @@
+## 1.0.3
+* 优化 当复制文件失败时返回错误信息
+
+* Optimized When copying files fails, an error message is returned
+
 ## 1.0.2
 * 优化 文件路径获取
 * 优化 文件读取
